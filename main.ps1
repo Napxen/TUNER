@@ -10,7 +10,7 @@ $CUSTOM_PORT_FILE = "custom port detected.txt"
 
 # etcmc OFFICIAL BOOTLOADERS
 $PROVIDED_ENODES = @(
-"enode://2f690ad04d64891c70b08066e9d99f3e7ec97b5fdea9d412780a3bc07dbc2f2ad0e9c7f859f88308514e79776d703fb81848a708bab922fb12f866696be3c169@87.212.41.71:30307",
+    "enode://2f690ad04d64891c70b08066e9d99f3e7ec97b5fdea9d412780a3bc07dbc2f2ad0e9c7f859f88308514e79776d703fb81848a708bab922fb12f866696be3c169@87.212.41.71:30307",
 "enode://b170973d769385e9a005b13374ff94c18cc9bb8c4605dbffb69f9317f0dcb1026152bf3b5b7d4ea6e19d5858cf8bf0c6caa4d16c88aa94970b40a8565b56831f@208.69.189.17:30303",
 "enode://732320c1b34f937f7d2d5f4342003a11b47ce17437b3535c1bebd50729d5f93d4d8c180751ade3e7a66a9d2401bc5888d30e4f85c41b99441bbb9ff1dc45893c@73.249.49.117:30303",
 "enode://7a2d2ac51bce072c6fd013e9d7a0a90e87fec022b3cab3fb6177c76e15075d299936bcc6a0e73449aa2b52ab911e5119c0f99b9d1dbc7f3d539c5c739503585c@87.212.41.71:30320",
@@ -70,13 +70,15 @@ function Log-Message {
 function Read-CurrentPort {
     $locations = @(
         "C:\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1920x1080\ETCMC_GUI\ETCMC_GETH",
-        "C:\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1024x600\ETCMC_GUI\ETCMC_GETH",
-        "D:\"
+        "C:\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1024x600\ETCMC_GUI\ETCMC_GETH"
+        # Removed "D:\" as it was causing issues in Script A
     )
 
     foreach ($location in $locations) {
         $batchFilePath = Join-Path $location $BATCH_FILE
+        Log-Message "Checking for batch file at: $batchFilePath"
         if (Test-Path $batchFilePath) {
+            Log-Message "Found batch file at: $batchFilePath"
             $batchFileContent = Get-Content $batchFilePath
             foreach ($line in $batchFileContent) {
                 if ($line -match "--port\s+(['""]?\d+['""]?)(\s|\^|$)") {
@@ -87,6 +89,9 @@ function Read-CurrentPort {
                     return $currentPort, $location
                 }
             }
+            Log-Message "No port information found in batch file at: $batchFilePath"
+        } else {
+            Log-Message "Batch file not found at: $batchFilePath"
         }
     }
     Log-Message "No START_GETH_FAST_NODE.bat file found in the specified locations."
@@ -98,8 +103,10 @@ function Fetch-AllNodes {
         Log-Message "Fetching all nodes..."
         $response = Invoke-WebRequest -Uri $API_URL
         $nodes = $response.Content | ConvertFrom-Json
-        $filteredNodes = $nodes | Where-Object { $_.enode -and $_.enode -match ":303" }
+        # Adjust the regular expression to accurately match the port range
+        $filteredNodes = $nodes | Where-Object { $_.enode -and $_.enode -match ":3030[3-9]|:3039[0-2]" -and $_.enode -notmatch "\?discport=" }
         Log-Message "Found $($filteredNodes.Count) nodes after filtering"
+        # Increase the number of nodes fetched if necessary
         return $filteredNodes | Select-Object -First $TARGET_NODES -ExpandProperty enode
     }
     catch {
@@ -130,13 +137,6 @@ function Write-Files {
     Log-Message "Batch file written to $destinationDir"
 }
 
-
-
-
-
-
-
-
 function Move-FilesAndRename {
     param ([string]$destinationDir)
 
@@ -151,11 +151,9 @@ function Move-FilesAndRename {
     }
 }
 
-
 function Open-FirewallPorts {
     Log-Message "Opening firewall ports..."
-    $customPort = Get-Content -Path $CUSTOM_PORT_FILE
-    $ports = @(30303, $customPort)
+    $ports = @(30303..30312 + 8545, 8546, 55802)
     foreach ($port in $ports) {
         netsh advfirewall firewall add rule name="Open TCP Port $port" dir=in action=allow protocol=TCP localport=$port | Out-Null
         netsh advfirewall firewall add rule name="Open UDP Port $port" dir=in action=allow protocol=UDP localport=$port | Out-Null

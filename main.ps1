@@ -99,21 +99,38 @@ function Read-CurrentPort {
 }
 
 function Fetch-AllNodes {
+    $url = "https://api.etcnodes.org/peers?all=true"
+    $allData = @()
+
     try {
         Log-Message "Fetching all nodes..."
-        $response = Invoke-WebRequest -Uri $API_URL
-        $nodes = $response.Content | ConvertFrom-Json
-        # Adjust the regular expression to accurately match the port range
-        $filteredNodes = $nodes | Where-Object { $_.enode -and $_.enode -match ":3030[3-9]|:3039[0-2]" -and $_.enode -notmatch "\?discport=" }
+        do {
+            $response = Invoke-WebRequest -Uri $url
+            if ($response) {
+                $nodes = $response.Content | ConvertFrom-Json
+                $allData += $nodes
+                # Assuming the API provides a way to access the next set of data. If not, this will need adjustment.
+                $url = $null # Update this based on how to fetch the next set of data
+            }
+        } while ($url -ne $null)
+
+        # Filter nodes based on name and port range
+        $filteredNodes = $allData | Where-Object {
+            $_.name -like "*ETCMCgethNode*" -and 
+            $_.enode -match ":303(0[3-9]|1[0-2])" -and 
+            $_.enode -notmatch "\?discport="
+        }
+
         Log-Message "Found $($filteredNodes.Count) nodes after filtering"
-        # Increase the number of nodes fetched if necessary
         return $filteredNodes | Select-Object -First $TARGET_NODES -ExpandProperty enode
-    }
-    catch {
+    } catch {
         Log-Message "Error fetching nodes: $_"
         return @()
     }
 }
+
+
+
 
 function Write-Files {
     param (

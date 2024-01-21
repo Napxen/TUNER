@@ -235,7 +235,7 @@ function Move-FilesAndRename {
 
 function Open-FirewallPorts {
     Log-Message "Opening firewall ports..."
-    $ports = @(30303..30312 + 8545, 8546, 55802)
+    $ports = @(30303..30312 + 8545, 8546)
     foreach ($port in $ports) {
         netsh advfirewall firewall add rule name="Open TCP Port $port" dir=in action=allow protocol=TCP localport=$port | Out-Null
         netsh advfirewall firewall add rule name="Open UDP Port $port" dir=in action=allow protocol=UDP localport=$port | Out-Null

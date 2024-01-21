@@ -1,5 +1,5 @@
 # Constants
-$TARGET_NODES = 50
+$TARGET_NODES = 100
 $API_URL = 'https://api.etcnodes.org/peers?all=true'
 $NODES_FILE = "found_nodes.txt"
 $BATCH_FILE = "START_GETH_FAST_NODE.bat"
@@ -10,7 +10,7 @@ $CUSTOM_PORT_FILE = "custom port detected.txt"
 
 # etcmc OFFICIAL BOOTLOADERS
 $PROVIDED_ENODES = @(
-    "enode://2f690ad04d64891c70b08066e9d99f3e7ec97b5fdea9d412780a3bc07dbc2f2ad0e9c7f859f88308514e79776d703fb81848a708bab922fb12f866696be3c169@87.212.41.71:30307",
+"enode://2f690ad04d64891c70b08066e9d99f3e7ec97b5fdea9d412780a3bc07dbc2f2ad0e9c7f859f88308514e79776d703fb81848a708bab922fb12f866696be3c169@87.212.41.71:30307",
 "enode://b170973d769385e9a005b13374ff94c18cc9bb8c4605dbffb69f9317f0dcb1026152bf3b5b7d4ea6e19d5858cf8bf0c6caa4d16c88aa94970b40a8565b56831f@208.69.189.17:30303",
 "enode://732320c1b34f937f7d2d5f4342003a11b47ce17437b3535c1bebd50729d5f93d4d8c180751ade3e7a66a9d2401bc5888d30e4f85c41b99441bbb9ff1dc45893c@73.249.49.117:30303",
 "enode://7a2d2ac51bce072c6fd013e9d7a0a90e87fec022b3cab3fb6177c76e15075d299936bcc6a0e73449aa2b52ab911e5119c0f99b9d1dbc7f3d539c5c739503585c@87.212.41.71:30320",
@@ -71,7 +71,6 @@ function Read-CurrentPort {
     $locations = @(
         "C:\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1920x1080\ETCMC_GUI\ETCMC_GETH",
         "C:\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1024x600\ETCMC_GUI\ETCMC_GETH"
-        # Removed "D:\" as it was causing issues in Script A
     )
 
     foreach ($location in $locations) {
@@ -81,7 +80,7 @@ function Read-CurrentPort {
             Log-Message "Found batch file at: $batchFilePath"
             $batchFileContent = Get-Content $batchFilePath
             foreach ($line in $batchFileContent) {
-                if ($line -match "--port\s+(['""]?\d+['""]?)(\s|\^|$)") {
+                if ($line -match "--port\s+(['""]?\d+['""]?)") {
                     $currentPort = $matches[1] -replace '[^0-9]'
                     $customPortFilePath = Join-Path (Split-Path -Parent $PSCommandPath) $CUSTOM_PORT_FILE
                     Set-Content -Path $customPortFilePath -Value $currentPort
@@ -98,9 +97,12 @@ function Read-CurrentPort {
     return $null, $null
 }
 
+
 function Fetch-AllNodes {
     $url = "https://api.etcnodes.org/peers?all=true"
     $allData = @()
+    $requestCount = 0
+    $maxRequests = 5
 
     try {
         Log-Message "Fetching all nodes..."
@@ -109,12 +111,18 @@ function Fetch-AllNodes {
             if ($response) {
                 $nodes = $response.Content | ConvertFrom-Json
                 $allData += $nodes
-                # Assuming the API provides a way to access the next set of data. If not, this will need adjustment.
-                $url = $null # Update this based on how to fetch the next set of data
+                $requestCount++
+                Log-Message "Request $($requestCount): Fetched nodes."
             }
-        } while ($url -ne $null)
 
-        # Filter nodes based on name and port range
+            if ($requestCount -lt $maxRequests) {
+                # Delay between requests to avoid overloading the server
+                Start-Sleep -Seconds 5
+            }
+
+        } while ($requestCount -lt $maxRequests)
+
+        # Apply filters to the nodes
         $filteredNodes = $allData | Where-Object {
             $_.name -like "*ETCMCgethNode*" -and 
             $_.enode -match ":303(0[3-9]|1[0-2])" -and 
@@ -122,36 +130,88 @@ function Fetch-AllNodes {
         }
 
         Log-Message "Found $($filteredNodes.Count) nodes after filtering"
-        return $filteredNodes | Select-Object -First $TARGET_NODES -ExpandProperty enode
+
+        # Return unique nodes
+        return $filteredNodes | Select-Object -Unique -ExpandProperty enode
     } catch {
         Log-Message "Error fetching nodes: $_"
         return @()
     }
 }
 
-
-
-
 function Write-Files {
     param (
-        [string[]]$nodes,
+        [string[]]$bootstrapNodes,
+        [string[]]$staticNodes,
         [string]$customPort,
         [string]$destinationDir
     )
 
-    Log-Message "Writing configuration and batch files..."
-    $batchContent = "title Ethereum Classic Node`ngeth --config config.toml --classic --syncmode `"snap`" --cache 1024 --metrics --http --http.addr `"localhost`" --http.port `"8545`" --http.corsdomain `"*`" --ws --ws.addr `"localhost`" --ws.port `"8546`" --ws.origins `"*`" --datadir `".\gethDataDirFastNode`" --identity `"ETCMCgethNode`" --port $customPort --bootnodes "
+    # Ensure we have a unique list of static nodes, respecting the count limits
+    $minStaticNodes = 60
+    $maxStaticNodes = 100
+    $uniqueStaticNodes = $staticNodes | Select-Object -Unique
 
-    foreach ($node in $nodes) {
-        $batchContent += "`"$node`", "
+    $selectedStaticNodes = if ($uniqueStaticNodes.Count -gt $maxStaticNodes) {
+        $uniqueStaticNodes | Select-Object -First $maxStaticNodes
+    } elseif ($uniqueStaticNodes.Count -lt $minStaticNodes) {
+        $combinedNodes = $uniqueStaticNodes + $bootstrapNodes
+        $combinedUniqueNodes = $combinedNodes | Select-Object -Unique
+        $combinedUniqueNodes | Select-Object -First $minStaticNodes
+    } else {
+        $uniqueStaticNodes
     }
 
-    # Remove the last comma and space, then add the console command
-    $batchContent = $batchContent.TrimEnd(", ")
-    $batchContent += " console`n"
+    Log-Message "Selected $($selectedStaticNodes.Count) unique static nodes for configuration."
 
-    Set-Content -Path (Join-Path $destinationDir "batchFile.bat") -Value $batchContent
-    Log-Message "Batch file written to $destinationDir"
+    # Batch file content
+    $batchContent = "title Ethereum Classic Node`ngeth --config `"config.toml`" --classic --syncmode `"snap`" --cache 1024 --metrics --http --http.addr `"localhost`" --http.port `"8545`" --http.corsdomain `"*`" --ws --ws.addr `"localhost`" --ws.port `"8546`" --ws.origins `"*`" --datadir `".\\gethDataDirFastNode`" --identity `"ETCMCgethNode`" --port $customPort console`n"
+    Set-Content -Path (Join-Path $destinationDir "batchfile.bat") -Value $batchContent
+
+    # Config file content formatting for bootstrap and static nodes
+    $bootstrapNodesFormatted = '"' + ($bootstrapNodes -join '",' + "`n" + '"') + '"'
+    $staticNodesFormatted = '"' + ($selectedStaticNodes -join '",' + "`n" + '"') + '"'
+
+    $configContent = "# Ethereum Classic Node Configuration`n`n" +
+    "[Eth]`n" +
+    "# Network ID for Ethereum Classic`n" +
+    "NetworkId = 61`n" +
+    "# Sync mode (snap is faster for initial sync)`n" +
+    'SyncMode = "snap"' + "`n" +
+    "# Other optimization parameters`n" +
+    "NoPruning = false`n" +
+    "NoPrefetch = false`n" +
+    "LightPeers = 100`n" +
+    "UltraLightFraction = 75`n" +
+    "# Cache size for database in MB`n" +
+    "DatabaseCache = 1024`n`n" +
+    "[Node]`n" +
+    "# Data directory for the Ethereum node data`n" +
+    'DataDir = ".\\gethDataDirFastNode"' + "`n" +
+    "# Path to IPC file for inter-process communication`n" +
+    'IPCPath = "geth.ipc"' + "`n" +
+    "# HTTP configurations for the node`n" +
+    'HTTPHost = "localhost"' + "`n" +
+    "HTTPPort = 8545`n" +
+    'HTTPCors = ["*"]' + "`n" +
+    'HTTPVirtualHosts = ["localhost"]' + "`n" +
+    "# Websocket configurations`n" +
+    'WSHost = "localhost"' + "`n" +
+    "WSPort = 8546`n`n" +
+    "[Node.P2P]`n" +
+    "# Peer-to-peer configurations`n" +
+    "MaxPeers = 100`n" +
+    "NoDiscovery = false`n`n" +
+    "# Add your bootstrap nodes here`n" +
+    "BootstrapNodes = [" + "`n" +
+    $bootstrapNodesFormatted + "`n]" + "`n`n" +
+    "# Add your static nodes here`n" +
+    "StaticNodes = [" + "`n" +
+    $staticNodesFormatted + "`n]" +
+    "`n"
+
+    # Write config file
+    Set-Content -Path (Join-Path $destinationDir "config.toml") -Value $configContent
 }
 
 function Move-FilesAndRename {
@@ -170,7 +230,7 @@ function Move-FilesAndRename {
 
 function Open-FirewallPorts {
     Log-Message "Opening firewall ports..."
-    $ports = @(30303..30312 + 8545, 8546, 55802)
+    $ports = @(30303..30312 + 8545, 8546)
     foreach ($port in $ports) {
         netsh advfirewall firewall add rule name="Open TCP Port $port" dir=in action=allow protocol=TCP localport=$port | Out-Null
         netsh advfirewall firewall add rule name="Open UDP Port $port" dir=in action=allow protocol=UDP localport=$port | Out-Null
@@ -179,28 +239,31 @@ function Open-FirewallPorts {
 }
 
 # Main Script Execution
-
-Log-Message "Alpha 7 Script execution started."
+Log-Message "BETA4.2 Script execution started."
 $currentPort, $portLocation = Read-CurrentPort
 if (-not $currentPort) {
     Log-Message "No existing port found. Exiting script."
     return
 }
 
-$allNodes = Fetch-AllNodes
-if ($allNodes.Count -eq 0) {
-    Log-Message "No suitable nodes found."
-    return
-}
+$apiNodes = Fetch-AllNodes
 
-if ($allNodes.Count -lt $TARGET_NODES) {
-    Log-Message "Warning: Found less than $TARGET_NODES nodes. Proceeding with $($allNodes.Count) nodes."
-}
+# Ensuring static nodes are between 60 and 100
+$minStaticNodes = 60
+$maxStaticNodes = 100
+$staticNodeCount = [Math]::Min($apiNodes.Count, $maxStaticNodes)
+$staticNodeCount = [Math]::Max($staticNodeCount, $minStaticNodes)
+$staticNodes = $apiNodes | Select-Object -First $staticNodeCount
 
-Write-Files -nodes $allNodes -customPort $currentPort -destinationDir $portLocation
+Write-Files -bootstrapNodes $PROVIDED_ENODES -staticNodes $staticNodes -customPort $currentPort -destinationDir $portLocation
 Move-FilesAndRename -destinationDir $portLocation
 Open-FirewallPorts
 Log-Message "Script execution completed. Check the output files and firewall settings."
 Log-Message "Summary of actions: Port read, batch and config files created, STATIC_NODES.json processed, firewall ports opened."
 Log-Message "Press any key to exit..."
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
+
+
+
+

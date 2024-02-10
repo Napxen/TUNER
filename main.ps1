@@ -80,46 +80,79 @@ function Read-CurrentPort {
 
 
 function Fetch-AllNodes {
-    $url = "https://api.etcnodes.org/peers?all=true"
-    $allData = @()
-    $requestCount = 0
-    $maxRequests = 5
+    param (
+        $MaxThreads = 10
+    )
+    
+    $url = "https://explorer.etcmc-monitor.org/api?port=30303"
+    $allData = New-Object System.Collections.Generic.List[Object]
+    $jobList = @()
 
     try {
-        Log-Message "Fetching all nodes..."
-        do {
-            $response = Invoke-WebRequest -Uri $url
-            if ($response) {
-                $nodes = $response.Content | ConvertFrom-Json
-                $allData += $nodes
-                $requestCount++
-                Log-Message "Request $($requestCount): Fetched nodes."
+        Log-Message "Fetching nodes from $url..."
+        $response = Invoke-WebRequest -Uri $url
+        if ($response) {
+            $jsonData = $response.Content | ConvertFrom-Json
+            $nodes = $jsonData.nodes
+            if ($nodes -and $nodes -is [System.Array]) {
+                $allData.AddRange($nodes)
+                Log-Message "Fetched nodes."
+
+                $nodeCount = 0
+                # Start jobs to check reachability of nodes
+                foreach ($node in $allData) {
+                    $enodeParts = $node.enode.Split('@')[1].Split(':')
+                    $ip = $enodeParts[0]
+                    $port = $enodeParts[1]
+
+                    while ((Get-Job -State "Running").Count -ge $MaxThreads) {
+                        Start-Sleep -Milliseconds 500
+                        Write-Progress -Activity "Checking Node Reachability" -Status "$([Math]::Round(($nodeCount / $allData.Count) * 100, 2))% Complete" -PercentComplete (($nodeCount / $allData.Count) * 100)
+                    }
+
+                    $job = Start-Job -ScriptBlock {
+                        param($ip, $port, $enode)
+                        $tcpClient = New-Object System.Net.Sockets.TcpClient
+                        try {
+                            $tcpClient.ConnectAsync($ip, $port).Wait(5000) # 5-second timeout
+                            if ($tcpClient.Connected) {
+                                return $enode
+                            }
+                        } catch {
+                            return $null
+                        } finally {
+                            $tcpClient.Close()
+                        }
+                    } -ArgumentList $ip, $port, $node.enode
+
+                    $jobList += $job
+                    $nodeCount++
+                }
+
+                # Collect results
+                $reachableNodes = @()
+                foreach ($job in $jobList) {
+                    $result = Receive-Job -Job $job -Wait
+                    Remove-Job -Job $job
+                    if ($result) {
+                        $reachableNodes += $result
+                        Log-Message "Node $result is reachable."
+                    }
+                }
+            } else {
+                Log-Message "No nodes found in the response."
             }
-
-            if ($requestCount -lt $maxRequests) {
-                # Delay between requests to avoid overloading the server
-                Start-Sleep -Seconds 5
-            }
-
-        } while ($requestCount -lt $maxRequests)
-
-        # Apply filters to the nodes
-        $filteredNodes = $allData | Where-Object {
-            $_.name -like "*ETCMCgethNode*" -and 
-            $_.enode -match ":303(0[3-9]|1[0-2])" -and 
-            $_.enode -notmatch "\?discport="
         }
 
-        Log-Message "Found $($filteredNodes.Count) nodes after filtering"
+        Log-Message "Found $($reachableNodes.Count) reachable nodes."
 
         # Return unique nodes
-        return $filteredNodes | Select-Object -Unique -ExpandProperty enode
+        return $reachableNodes | Select-Object -Unique
     } catch {
         Log-Message "Error fetching nodes: $_"
         return @()
     }
 }
-
 function Write-Files {
     param (
         [string[]]$bootstrapNodes,

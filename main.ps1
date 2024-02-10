@@ -258,7 +258,7 @@ function Open-FirewallPorts {
 }
 
 # Main Script Execution
-Log-Message "BETA4.2 Script execution started."
+Log-Message "Data implimentation started."
 $currentPort, $portLocation = Read-CurrentPort
 if (-not $currentPort) {
     Log-Message "No existing port found. Exiting script."
@@ -277,7 +277,7 @@ $staticNodes = $apiNodes | Select-Object -First $staticNodeCount
 Write-Files -bootstrapNodes $PROVIDED_ENODES -staticNodes $staticNodes -customPort $currentPort -destinationDir $portLocation
 Move-FilesAndRename -destinationDir $portLocation
 Open-FirewallPorts
-Log-Message "Script execution completed. Check the output files and firewall settings."
+Log-Message "Script execution completed. "
 Log-Message "Summary of actions: Port read, batch and config files created, STATIC_NODES.json processed, firewall ports opened."
 Log-Message "Press any key to exit..."
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

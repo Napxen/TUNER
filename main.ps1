@@ -49,34 +49,45 @@ function Log-Message {
 }
 
 function Read-CurrentPort {
-    $locations = @(
-        "C:\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1920x1080\ETCMC_GUI\ETCMC_GETH",
-        "C:\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1024x600\ETCMC_GUI\ETCMC_GETH"
+    $defaultPort = 30303
+    $folderPaths = @(
+        "\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1920x1080\ETCMC_GUI\ETCMC_GETH",
+        "\Program Files (x86)\ETCMC ETC NODE LAUNCHER 1024x600\ETCMC_GUI\ETCMC_GETH"
     )
 
-    foreach ($location in $locations) {
-        $batchFilePath = Join-Path $location $BATCH_FILE
-        Log-Message "Checking for batch file at: $batchFilePath"
-        if (Test-Path $batchFilePath) {
-            Log-Message "Found batch file at: $batchFilePath"
-            $batchFileContent = Get-Content $batchFilePath
-            foreach ($line in $batchFileContent) {
-                if ($line -match "--port\s+(['""]?\d+['""]?)") {
-                    $currentPort = $matches[1] -replace '[^0-9]'
-                    $customPortFilePath = Join-Path (Split-Path -Parent $PSCommandPath) $CUSTOM_PORT_FILE
-                    Set-Content -Path $customPortFilePath -Value $currentPort
-                    Log-Message "Current port ($currentPort) detected and saved to $customPortFilePath"
-                    return $currentPort, $location
+    $drives = [System.IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq "Fixed" }
+    foreach ($drive in $drives) {
+        foreach ($folderPath in $folderPaths) {
+            $fullPath = Join-Path $drive.Name $folderPath
+            $batchFilePath = Join-Path $fullPath $BATCH_FILE
+            Log-Message "Checking for batch file at: $batchFilePath"
+            if (Test-Path $batchFilePath) {
+                Log-Message "Found batch file at: $batchFilePath"
+                $batchFileContent = Get-Content $batchFilePath
+                $foundPort = $false
+                foreach ($line in $batchFileContent) {
+                    if ($line -match "--port\s+(['""]?\d+['""]?)") {
+                        $currentPort = $matches[1] -replace '[^0-9]'
+                        $customPortFilePath = Join-Path (Split-Path -Parent $PSCommandPath) $CUSTOM_PORT_FILE
+                        Set-Content -Path $customPortFilePath -Value $currentPort
+                        Log-Message "Current port ($currentPort) detected and saved to $customPortFilePath"
+                        $foundPort = $true
+                        return $currentPort, $fullPath
+                    }
                 }
+                if (-not $foundPort) {
+                    Log-Message "No port information found in batch file at: $batchFilePath. Defaulting to port $defaultPort."
+                    return $defaultPort, $fullPath
+                }
+            } else {
+                Log-Message "Batch file not found at: $batchFilePath"
             }
-            Log-Message "No port information found in batch file at: $batchFilePath"
-        } else {
-            Log-Message "Batch file not found at: $batchFilePath"
         }
     }
-    Log-Message "No START_GETH_FAST_NODE.bat file found in the specified locations."
-    return $null, $null
+    Log-Message "No START_GETH_FAST_NODE.bat file found in the specified locations. Defaulting to port $defaultPort."
+    return $defaultPort, $null
 }
+
 
 
 function Fetch-AllNodes {
@@ -257,7 +268,7 @@ function Open-FirewallPorts {
 }
 
 # Main Script Execution
-Log-Message "Script execution started."
+Log-Message "MAIN Script execution started."
 $currentPort, $portLocation = Read-CurrentPort
 if (-not $currentPort) {
     Log-Message "No existing port found. Exiting script."
@@ -279,8 +290,8 @@ $staticNodes = $staticNodes | Select-Object -First $staticNodeCount
 Write-Files -bootstrapNodes $PROVIDED_ENODES -staticNodes $staticNodes -customPort $currentPort -destinationDir $portLocation
 Move-FilesAndRename -destinationDir $portLocation
 Open-FirewallPorts
-Log-Message "Script execution completed."
-Log-Message "Summary of actions: Port read, batch and config files created, firewall ports opened."
+Log-Message "Script execution completed. Check the output files and firewall settings."
+Log-Message "Summary of actions: Port read, batch and config files created, STATIC_NODES.json processed, firewall ports opened."
 Log-Message "Press any key to exit..."
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 

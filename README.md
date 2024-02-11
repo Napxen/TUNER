@@ -19,7 +19,7 @@ is a PowerShell script automates the setup and configuration of ETCMC nodes, str
 
 Key Features:
 
-Node Discovery: Connects to blockscout to fetch a list of active ETCMC nodes, filtering them based on specific port criteria (30303 to 30312).
+Node Discovery: Connects to etcmc-monitor.org to fetch a list of active ETCMC nodes, filtering them based on specific port 30303
 
 Data Processing: Processes each node to eliminate duplicates and ensure compliance with the port criteria. The resulting list of nodes is saved in a new configuration file inside the geth application folder batch File Generation: Generates a batch file (START_GETH_FAST_NODE.bat) to start an ETCMC node with predefined Approved ETCMC bootloading fullnodes and will keep your custom port if you had one in batch
 

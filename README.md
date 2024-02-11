@@ -1,6 +1,10 @@
 download and Unzip
 
-RIGHT CLICK and run ETCMCtune5 AS ADMINISTRATOR
+RIGHT CLICK and run ETCMCtune5 AS ADMINISTRATOR. 
+
+download: https://github.com/etclabscore/core-geth/releases/download/v1.12.19/core-geth-win64-v1.12.19.zip
+extract, and place the geth.exe file into your ETCMC_GETH folder, over-write the existing one.
+(this geth.exe is the UDP fix for core geth UPnP)
 
 stop your node, WAIT 5 SECONDS... CLOSE ALL WINDWS AND APPS.
 

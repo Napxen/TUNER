@@ -6,7 +6,7 @@ THEN: download... https://github.com/etclabscore/core-geth/releases/download/v1.
 extract, and place the geth.exe file into your ETCMC_GETH folder, over-write the existing one.
 (this geth.exe is the UDP fix for core geth UPnP)
 
-stop your node, WAIT 5 SECONDS... CLOSE ALL WINDWS AND APPS.
+stop your node & CLOSE ALL Geth windows
 
 REBOOT THE COMPUTER
 

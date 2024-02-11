@@ -21,7 +21,7 @@ Key Features:
 
 Node Discovery: Connects to etcmc-monitor.org to fetch a list of active ETCMC nodes, filtering them based on specific port 30303
 
-Data Processing: Processes each node to eliminate duplicates and ensure compliance with the port criteria. The resulting list of nodes is saved in a new configuration file inside the geth application folder batch File Generation: Generates a batch file (START_GETH_FAST_NODE.bat) to start an ETCMC node with predefined Approved ETCMC bootloading fullnodes and will keep your custom port if you had one in batch
+Data Processing: Processes each node to eliminate duplicates and ensure compliance with the port criteria. The resulting list of nodes is saved in a new configuration file inside the geth application folder batch File Generation: reGenerates the batch file (START_GETH_FAST_NODE.bat) and adds config.toml to start an ETCMC node with predefined Approved ETCMC bootloading fullnodes and api pulled active enodes.
 
 File Management: Moves these generated files to the appropriate system directories, automatically handling file renaming. Firewall Configuration: Automatically opens necessary TCP and UDP ports (30303 and whatever custom port you had in the batch file for the ETC node operation, catering to WebSocket protocols.
 

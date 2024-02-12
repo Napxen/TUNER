@@ -1,6 +1,6 @@
 # Constants
 $TARGET_NODES = 100
-$API_URL = 'https://explorer.etcmc-monitor.org/api?port=30303'
+$API_URL = 'https://explorer.etcmc-monitor.org/api?port=30303&version_filter=ETCMCgethNode'
 $NODES_FILE = "found_nodes.txt"
 $BATCH_FILE = "START_GETH_FAST_NODE.bat"
 $CONFIG_FILE = "config.toml"

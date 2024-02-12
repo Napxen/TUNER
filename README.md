@@ -1,4 +1,6 @@
-click the green code button and download the zip file to your downloads folder and Unzip
+click the green code button and download the zip file to your downloads folder 
+
+Unzip it
 
 RIGHT CLICK and run ETCMCtune5 AS ADMINISTRATOR. 
 

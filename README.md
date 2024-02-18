@@ -1,3 +1,5 @@
+YOU MUST HAVE INTERNET EXPLORER ACTIVATED IN WINDOWS TO USE THIS SCRIPT OR IT WILL NOT BE ABLE TO PULL FROM THE API
+
 click the green code button and download the zip file to your downloads folder 
 
 Unzip it

@@ -187,7 +187,7 @@ function Write-Files {
     Log-Message "Selected $($selectedStaticNodes.Count) unique static nodes for configuration."
 
    # Batch file content
-    $batchContent = "title Ethereum Classic Node`ngeth --config `"config.toml`" --classic --syncmode `"snap`" --cache 1024 --metrics --http --http.addr `"localhost`" --http.port `"8545`" --http.corsdomain `"*`" --ws --ws.addr `"localhost`" --ws.port `"8546`" --ws.origins `"*`" --datadir `".\\gethDataDirFastNode`" --identity `"ETCMCgethNode`" --port $customPort console`n"
+    $batchContent = "title Ethereum Classic Node`ngeth --config `"config.toml`" --classic --syncmode `"snap`" --cache 1024 --metrics --http --http.addr `"localhost`" --http.port `"8545`" --http.api "admin" --http.corsdomain `"*`" --ws --ws.addr `"localhost`" --ws.port `"8546`" --ws.origins `"*`" --datadir `".\\gethDataDirFastNode`" --identity `"ETCMCgethNode`" --port $customPort console`n"
     
     # Change here: Use $BATCH_FILE variable to create the correct batch file
     Set-Content -Path (Join-Path $destinationDir $BATCH_FILE) -Value $batchContent

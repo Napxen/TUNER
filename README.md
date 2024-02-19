@@ -8,13 +8,6 @@ RIGHT CLICK and run ETCMCtune5 AS ADMINISTRATOR.
 
 stop your node & CLOSE ALL Geth windows
 
-THEN: download... https://github.com/etclabscore/core-geth/releases/download/v1.12.19/core-geth-win64-v1.12.19.zip
-
-extract, and place the geth.exe file into your ETCMC_GETH folder, over-write the existing one.
-(this geth.exe is the UDP fix for core geth UPnP)
-
-REBOOT THE COMPUTER
-
 Relaunch your node
 
 tip jar: 0x6f1BC68CBb7C19c263d9EBC708c139be1c48c636

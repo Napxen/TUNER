@@ -6,7 +6,7 @@ Unzip it
 
 RIGHT CLICK and run ETCMCtune5 AS ADMINISTRATOR. 
 
-stop your node & CLOSE ALL Geth windows
+stop your node & Wait 10 seconds.
 
 Relaunch your node
 

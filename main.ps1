@@ -1,10 +1,10 @@
-# Constants
-$TARGET_NODES = 100
-$API_URL = 'https://api.etcnodes.org/peers?all=true&port=30303&version_filter=ETCMCgethNode'
-$NODES_FILE = "found_nodes.txt"
+$ScriptBaseDirectory = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$TARGET_NODES = 50
+$API_URL = 'https://api.etcnodes.org/peers?all=true'
+$AllNodesFile = "reachablenodes.txt"
+$FilteredNodesFile = "30303.txt"
 $BATCH_FILE = "START_GETH_FAST_NODE.bat"
 $CONFIG_FILE = "config.toml"
-$STATIC_NODES_FILE = "STATIC_NODES.json"
 $LOG_FILE = "script_log.txt"
 $CUSTOM_PORT_FILE = "custom port detected.txt"
 
@@ -87,115 +87,53 @@ function Read-CurrentPort {
 
 
 
-function Fetch-AllNodes {
-    param (
-        $MaxThreads = 10
-    )
-    
-    $url = "https://explorer.etcmc-monitor.org/api?port=30303"
-    $allData = New-Object System.Collections.Generic.List[Object]
-    $jobList = @()
-
+# Function to fetch and process nodes
+function Fetch-And-Process-Nodes {
     try {
-        Log-Message "Fetching nodes from $url..."
-        $response = Invoke-WebRequest -Uri $url
-        if ($response) {
-            $jsonData = $response.Content | ConvertFrom-Json
-            $nodes = $jsonData.nodes
-            if ($nodes -and $nodes -is [System.Array]) {
-                $allData.AddRange($nodes)
-                Log-Message "Fetched nodes."
+        # Fetch nodes
+        $response = Invoke-WebRequest -Uri $API_URL -UseBasicParsing
+        $nodes = $response.Content | ConvertFrom-Json
 
-                $nodeCount = 0
-                foreach ($node in $allData) {
-                    $enodeParts = $node.enode.Split('@')[1].Split(':')
-                    $ip = $enodeParts[0]
-                    $port = $enodeParts[1]
+        # Check if we have nodes to process
+        if ($nodes -and $nodes.Count -gt 0) {
+            # Extract enode URLs
+            $enodes = $nodes | ForEach-Object { $_.enode }
+            Write-Host "Fetched $($enodes.Count) nodes."
 
-                    while ((Get-Job -State "Running").Count -ge $MaxThreads) {
-                        Start-Sleep -Milliseconds 500
-                        Write-Progress -Activity "Checking Node Reachability" -Status "$([Math]::Round(($nodeCount / $allData.Count) * 100, 2))% Complete" -PercentComplete (($nodeCount / $allData.Count) * 100)
-                    }
+            # Write all enodes to file
+            $enodes | Out-File -FilePath $AllNodesFile
+            Write-Host "Written all enodes to $AllNodesFile."
 
-                    $job = Start-Job -ScriptBlock {
-                        param($ip, $port, $enode)
-                        $tcpClient = New-Object System.Net.Sockets.TcpClient
-                        try {
-                            $tcpClient.ConnectAsync($ip, $port).Wait(5000) # 5-second timeout
-                            if ($tcpClient.Connected) {
-                                return $enode
-                            }
-                        } catch {
-                            return $null
-                        } finally {
-                            $tcpClient.Close()
-                        }
-                    } -ArgumentList $ip, $port, $node.enode
-
-                    $jobList += $job
-                    $nodeCount++
-                }
-
-                $reachableNodes = @()
-                foreach ($job in $jobList) {
-                    $result = Receive-Job -Job $job -Wait
-                    Remove-Job -Job $job
-                    if ($result -and $result -like "enode://*") {
-                        $reachableNodes += $result
-                        Log-Message "Node $result is reachable."
-                    }
-                }
-                Log-Message "Found $($reachableNodes.Count) reachable nodes."
-                return $reachableNodes | Select-Object -Unique
-            } else {
-                Log-Message "No nodes found in the response."
-            }
+            # Filter for enodes containing port 30303 and write to another file
+            $filteredEnodes = $enodes | Where-Object { $_ -match ":30303" }
+            $filteredEnodes | Out-File -FilePath $FilteredNodesFile
+            Write-Host "Written $($filteredEnodes.Count) filtered enodes to $FilteredNodesFile."
+        } else {
+            Write-Host "No nodes were found in the API response."
         }
     } catch {
-        Log-Message "Error fetching nodes: $_"
-        return @()
+        Write-Host "An error occurred: $_"
     }
 }
 
-
-
-
 function Write-Files {
     param (
-        [string[]]$bootstrapNodes,
-        [string[]]$staticNodes,
         [string]$customPort,
         [string]$destinationDir
     )
 
-    # Ensure we have a unique list of static nodes, respecting the count limits
-    $minStaticNodes = 60
-    $maxStaticNodes = 100
-    $uniqueStaticNodes = $staticNodes | Select-Object -Unique
+    $staticNodesFilePath = "C:\TUNER6\30303.txt"
+    $staticNodes = Get-Content $staticNodesFilePath
 
-    $selectedStaticNodes = if ($uniqueStaticNodes.Count -gt $maxStaticNodes) {
-        $uniqueStaticNodes | Select-Object -First $maxStaticNodes
-    } elseif ($uniqueStaticNodes.Count -lt $minStaticNodes) {
-        $combinedNodes = $uniqueStaticNodes + $bootstrapNodes
-        $combinedUniqueNodes = $combinedNodes | Select-Object -Unique
-        $combinedUniqueNodes | Select-Object -First $minStaticNodes
-    } else {
-        $uniqueStaticNodes
-    }
+    # Prepare static nodes formatted string for the config
+    $staticNodesFormatted = '"' + ($staticNodes -join '",' + "`n" + '"') + '"'
 
-    Log-Message "Selected $($selectedStaticNodes.Count) unique static nodes for configuration."
+    # Use the provided ENODES directly from the script's global variable
+    $bootstrapNodesFormatted = '"' + ($PROVIDED_ENODES -join '",' + "`n" + '"') + '"'
 
-   # Batch file content
+    # Construct batch and config content
     $batchContent = "title Ethereum Classic Node`ngeth --config `"config.toml`" --classic --syncmode `"snap`" --cache 1024 --metrics --http --http.addr `"localhost`" --http.api `"admin`" --http.port `"8545`" --http.corsdomain `"*`" --ws --ws.addr `"localhost`" --ws.port `"8546`" --ws.origins `"*`" --datadir `".\\gethDataDirFastNode`" --identity `"ETCMCgethNode`" --port $customPort console`n"
     
-    # Change here: Use $BATCH_FILE variable to create the correct batch file
-    Set-Content -Path (Join-Path $destinationDir $BATCH_FILE) -Value $batchContent
-    # Change here: Use $BATCH_FILE variable to create the correct batch file
-    Set-Content -Path (Join-Path $destinationDir $BATCH_FILE) -Value $batchContent
-    # Config file content formatting for bootstrap and static nodes
-    $bootstrapNodesFormatted = '"' + ($bootstrapNodes -join '",' + "`n" + '"') + '"'
-    $staticNodesFormatted = '"' + ($selectedStaticNodes -join '",' + "`n" + '"') + '"'
-
     $configContent = "# Ethereum Classic Node Configuration`n`n" +
     "[Eth]`n" +
     "# Network ID for Ethereum Classic`n" +
@@ -224,44 +162,47 @@ function Write-Files {
     "WSPort = 8546`n`n" +
     "[Node.P2P]`n" +
     "# Peer-to-peer configurations`n" +
-    "MaxPeers = 100`n" +
+    "MaxPeers = 50`n" +
     "NoDiscovery = false`n`n" +
-    "# Add your bootstrap nodes here`n" +
+    "# Bootstrap nodes configuration`n" +
     "BootstrapNodes = [" + "`n" +
     $bootstrapNodesFormatted + "`n]" + "`n`n" +
-    "# Add your static nodes here`n" +
+    "# Static nodes configuration (from 30303.txt)`n" +
     "StaticNodes = [" + "`n" +
-    $staticNodesFormatted + "`n]" +
-    "`n"
+    $staticNodesFormatted + "`n]" + "`n"
 
-    # Write config file
+    # Update the batch file and config.toml in the destination directory
+    Set-Content -Path (Join-Path $destinationDir $BATCH_FILE) -Value $batchContent
     Set-Content -Path (Join-Path $destinationDir "config.toml") -Value $configContent
 }
 
-
-
-function Move-FilesAndRename {
-    param ([string]$destinationDir)
-
-    Log-Message "Checking for STATIC_NODES.json file..."
-    $staticNodesPath = Join-Path $destinationDir $STATIC_NODES_FILE
-    if (Test-Path $staticNodesPath) {
-        $backupName = $STATIC_NODES_FILE -replace "\.json$", "bak.json"
-        Rename-Item -Path $staticNodesPath -NewName $backupName -ErrorAction SilentlyContinue
-        Log-Message "STATIC_NODES.json file renamed to $backupName"
-    } else {
-        Log-Message "No STATIC_NODES.json file found to rename."
-    }
-}
-
 function Open-FirewallPorts {
-    Log-Message "Opening firewall ports..."
-    $ports = @(30303..30312 + 8545, 8546)
+    Log-Message "Checking and opening firewall ports if needed..."
+    $ports = @(30303, 8545, 8546)
     foreach ($port in $ports) {
-        netsh advfirewall firewall add rule name="Open TCP Port $port" dir=in action=allow protocol=TCP localport=$port | Out-Null
-        netsh advfirewall firewall add rule name="Open UDP Port $port" dir=in action=allow protocol=UDP localport=$port | Out-Null
+        # Define rule names for TCP and UDP
+        $tcpRuleName = "Open TCP Port $port"
+        $udpRuleName = "Open UDP Port $port"
+        
+        # Check for existing TCP rule
+        $existingTCPRule = Get-NetFirewallRule -DisplayName $tcpRuleName -ErrorAction SilentlyContinue
+        if (-not $existingTCPRule) {
+            netsh advfirewall firewall add rule name="$tcpRuleName" dir=in action=allow protocol=TCP localport=$port | Out-Null
+            Log-Message "TCP Port $port rule added to the firewall."
+        } else {
+            Log-Message "TCP Port $port rule already exists in the firewall."
+        }
+        
+        # Check for existing UDP rule
+        $existingUDPRule = Get-NetFirewallRule -DisplayName $udpRuleName -ErrorAction SilentlyContinue
+        if (-not $existingUDPRule) {
+            netsh advfirewall firewall add rule name="$udpRuleName" dir=in action=allow protocol=UDP localport=$port | Out-Null
+            Log-Message "UDP Port $port rule added to the firewall."
+        } else {
+            Log-Message "UDP Port $port rule already exists in the firewall."
+        }
     }
-    Log-Message "Firewall ports opened."
+    Log-Message "Firewall ports check and open process completed."
 }
 
 # Main Script Execution
@@ -272,7 +213,7 @@ if (-not $currentPort) {
     return
 }
 
-$apiNodes = Fetch-AllNodes
+$apiNodes = Fetch-And-Process-Nodes
 
 # Validate nodes
 $staticNodes = $apiNodes | Where-Object { $_ -like "enode://*" }
@@ -285,10 +226,9 @@ $staticNodeCount = [Math]::Max($staticNodeCount, $minStaticNodes)
 $staticNodes = $staticNodes | Select-Object -First $staticNodeCount
 
 Write-Files -bootstrapNodes $PROVIDED_ENODES -staticNodes $staticNodes -customPort $currentPort -destinationDir $portLocation
-Move-FilesAndRename -destinationDir $portLocation
 Open-FirewallPorts
 Log-Message "Script execution completed. Check the output files and firewall settings."
-Log-Message "Summary of actions: Port read, batch and config files created, STATIC_NODES.json processed, firewall ports opened."
+Log-Message "Summary of actions: Port read, batch and config files created, firewall ports processed."
 Log-Message "Press any key to exit..."
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 

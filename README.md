@@ -1,12 +1,12 @@
 YOU MUST HAVE INTERNET EXPLORER ACTIVATED IN WINDOWS TO USE THIS SCRIPT OR IT WILL NOT BE ABLE TO PULL FROM THE API
 
-click the green code button and download the zip file to your downloads folder 
+DOWNLOAD TO ROOT C DRIVE
 
 Unzip it
 
-RIGHT CLICK and run ETCMCtune5 AS ADMINISTRATOR. 
+RIGHT CLICK and run tuner AS ADMINISTRATOR. 
 
-stop your node & Wait 10 seconds.
+stop your node & Wait 5 seconds.
 
 Relaunch your node
 

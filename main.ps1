@@ -121,7 +121,7 @@ function Write-Files {
         [string]$destinationDir
     )
 
-    $staticNodesFilePath = "C:\TUNER6\30303.txt"
+    $staticNodesFilePath = "C:\TUNER-main\30303.txt"
     $staticNodes = Get-Content $staticNodesFilePath
 
     # Prepare static nodes formatted string for the config
@@ -218,8 +218,8 @@ $apiNodes = Fetch-And-Process-Nodes
 $staticNodes = $apiNodes | Where-Object { $_ -like "enode://*" }
 
 # Ensure static nodes are between 60 and 100
-$minStaticNodes = 60
-$maxStaticNodes = 100
+$minStaticNodes = 1
+$maxStaticNodes = 50
 $staticNodeCount = [Math]::Min($staticNodes.Count, $maxStaticNodes)
 $staticNodeCount = [Math]::Max($staticNodeCount, $minStaticNodes)
 $staticNodes = $staticNodes | Select-Object -First $staticNodeCount

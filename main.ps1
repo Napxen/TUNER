@@ -61,7 +61,7 @@ function Read-CurrentPort {
                 foreach ($line in $batchFileContent) {
                     if ($line -match "--port\s+(['""]?\d+['""]?)") {
                         $currentPort = $matches[1] -replace '[^0-9]'
-                        $customPortFilePath = Join-Path (Split-Path -Parent $PSCommandPath) $CUSTOM_PORT_FILE
+                        $customPortFilePath = $CUSTOM_PORT_FILE
                         Set-Content -Path $customPortFilePath -Value $currentPort
                         Log-Message "Current port ($currentPort) detected and saved to $customPortFilePath"
                         $foundPort = $true

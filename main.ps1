@@ -1,12 +1,12 @@
 $ScriptBaseDirectory = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $TARGET_NODES = 50
 $API_URL = 'https://api.etcnodes.org/peers?all=true'
-$AllNodesFile = "reachablenodes.txt"
-$FilteredNodesFile = "30303.txt"
+$AllNodesFile = "C:\TUNER-main\reachablenodes.txt"
+$FilteredNodesFile = "C:\TUNER-main\30303.txt"
 $BATCH_FILE = "START_GETH_FAST_NODE.bat"
 $CONFIG_FILE = "config.toml"
-$LOG_FILE = "script_log.txt"
-$CUSTOM_PORT_FILE = "custom port detected.txt"
+$LOG_FILE = "C:\TUNER-main\script_log.txt"
+$CUSTOM_PORT_FILE = "C:\TUNER-main\custom port detected.txt"
 
 # etcmc OFFICIAL BOOTLOADERS
 $PROVIDED_ENODES = @(
